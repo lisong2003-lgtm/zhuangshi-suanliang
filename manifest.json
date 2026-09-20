@@ -1,0 +1,29 @@
+{
+  "name": "zhuangshi-suanliang",
+  "version": "0.7.0",
+  "description": "从房间类型、明细部位或 cad-file-reader 测量候选生成装饰概算与物资计划：概算按清单/商务口径，物资计划含损耗、搭接和附加层；输出六表台账与待确认项。内置15项国家规范/清单标准参考约束，项目专属做法必须绑定节点详图。",
+  "author": "lis",
+  "license": "CC-BY-NC-SA-4.0",
+  "entry": "SKILL.md",
+  "requires": {
+    "skill": "cad-file-reader>=0.18.0",
+    "python": ">=3.10"
+  },
+  "scripts": [
+    "scripts/decor_qty.py",
+    "scripts/cad_measure_to_input.py",
+    "rules/装饰做法.json",
+    "rules/国家规范要求.json",
+    "rules/标准房间模板.json",
+    "rules/清单工程量规则.json",
+    "rules/概算综合单价.json",
+    "rules/物资分类规则.json",
+    "templates/装饰算量输入表.csv",
+    "templates/快速概算输入表.csv",
+    "templates/项目专属规则示例.json",
+    "scripts/tests/test_decor_qty.py",
+    "scripts/tests/test_cad_measure_to_input.py"
+  ],
+  "privacy": "本机运行；脚本只处理用户提供的文件，不联网，不上传图纸或项目资料。",
+  "notes": "计划口径估算，不替代清单计价、竣工结算或下料单。"
+}
