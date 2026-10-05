@@ -1,12 +1,12 @@
 {
   "name": "zhuangshi-suanliang",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "description": "从房间类型、明细部位或 cad-file-reader 测量候选生成装饰概算与物资计划：概算按清单/商务口径，物资计划含损耗、搭接和附加层；输出六表台账与待确认项。内置15项国家规范/清单标准参考约束，项目专属做法必须绑定节点详图。",
   "author": "lis",
   "license": "CC-BY-NC-SA-4.0",
   "entry": "SKILL.md",
   "requires": {
-    "skill": "cad-file-reader>=0.18.0",
+    "skill": "cad-file-reader>=0.25.0",
     "python": ">=3.10"
   },
   "scripts": [

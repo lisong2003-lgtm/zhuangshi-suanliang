@@ -39,6 +39,54 @@ class CadMeasureToInputTest(unittest.TestCase):
             self.assertEqual(rows[1]["直接长度_m"], "")
             self.assertIn("图面值 3000 mm", rows[1]["说明"])
 
+    def test_imports_descriptive_candidates_all_review(self):
+        payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
+        descriptive = {
+            "schema": "cad-descriptive-geometry/v7",
+            "room_boundaries": [{"source_id": "room-1", "rooms": ["办公室"], "bbox": [0, 0, 12000, 8000]}],
+            "wall_segments": [{"source_id": "wall-1", "rooms": ["办公室"], "segment": [0, 0, 12000, 0],
+                               "segment_kind": "clear", "height_m": 3.0}],
+            "ceiling_zones": [{"source_id": "ceil-1", "rooms": ["办公室"], "zone_kind": "ceiling", "elevation_m": 2.8}],
+            "openings": [{"source_id": "op-1", "code": "M1021", "geometry": {"room_candidates": ["办公室"]}}],
+            "node_detail_index": [{"source_id": "node-1", "practice_codes": ["地101"], "node_codes": ["A"]}],
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "measure.json"
+            desc = root / "desc.json"
+            out = root / "decor.csv"
+            src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            desc.write_text(json.dumps(descriptive, ensure_ascii=False), encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src),
+                                   "--descriptive", str(desc), "--out", str(out), "--floor", "二层"],
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with out.open(encoding="utf-8-sig") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 5)
+            self.assertTrue(all(row["需核对"] == "是" for row in rows))
+            self.assertEqual(rows[0]["部位类型"], "待确认-房间")
+            self.assertEqual(rows[1]["部位类型"], "待确认-墙面")
+            self.assertEqual(rows[2]["部位类型"], "待确认-顶棚")
+            self.assertEqual(rows[3]["部位类型"], "待确认-门窗洞口")
+            self.assertEqual(rows[4]["做法编号"], "地101")
+            self.assertEqual(rows[4]["节点编号"], "A")
+
+    def test_validate_skipped_when_base_missing(self):
+        payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "measure.json"
+            out = root / "decor.csv"
+            src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            env = {"PATH": "/usr/bin:/bin", "CAD_SKILL_DIR": str(root / "not-exists")}
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src),
+                                   "--out", str(out), "--floor", "二层"],
+                                  capture_output=True, text=True, env=env)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            summary = json.loads(proc.stdout)
+            self.assertIsNone(summary["validation"])
+
 
 if __name__ == "__main__":
     unittest.main()
