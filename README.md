@@ -1,5 +1,8 @@
 # 装饰算量（zhuangshi-suanliang）v0.9.0
 
+> 📦 **SkillHub 安装**：`skillhub install zhuangshi-suanliang`　|　仓库：[lisong2003-lgtm/zhuangshi-suanliang](https://github.com/lisong2003-lgtm/zhuangshi-suanliang)
+
+
 用于从房间类型或建筑/结构/装修做法信息快速生成装饰概算和物资计划。输出可核对台账、计算式、规范参考和待确认项。
 
 ## 0.9.0 优化概览
