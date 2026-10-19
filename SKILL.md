@@ -2,7 +2,7 @@
 name: zhuangshi-suanliang
 slug: zhuangshi-suanliang
 displayName: 装饰算量 · 概算与物资计划
-version: 0.9.0
+version: 0.9.20
 author: lis
 license: CC-BY-NC-SA-4.0
 description: 根据房间类型、建筑说明、建筑图、结构图、房间装修表、做法表和节点详图，快速出装饰概算和物资计划；可导入 cad-file-reader 的长度/面积测量候选作为待核对输入，做法映射、洞口扣减、损耗、材料台账和清单量仍由本技能计算。
@@ -132,6 +132,7 @@ python3 \
 先用 `cad-file-reader` 生成带比例、单位、计算式和证据的测量候选：
 
 ```bash
+# 在识图底座 cad-file-reader 技能目录执行：
 scripts/cad_measure.sh 描述几何/图纸详情.descriptive.json --out-dir 测量候选
 ```
 
@@ -150,3 +151,14 @@ scripts/cad_measure_to_input.py --measurements 测量候选/cad-measurement-cand
 3. 图纸文字粘连、天正实体、表格跨页时可能漏读，必须用待确认项复核。
 4. CAD 测量候选只作识图证据，`final_quantity=false`；做法映射、洞口扣减、侧壁、损耗和材料台账必须在本技能内完成，真图回归仍是后续增强项。
 5. 不自动把公司数据上传云端，不联网解析图纸。
+
+
+## 显式依赖与降级（0.9+）
+
+- 底座 `cad-file-reader >= 0.28.1` 是本技能的**显式依赖**：运行首次会自动检测，缺失时自动下载安装底座并补齐 vendor（联网，下载包做 SHA-256 完整性与版本校验，校验失败拒绝安装）；已装则直接复用，不重复下载。
+- 独立/离线场景可设 `SKILL_NO_BASE=1`：不再自动安装底座，仅使用已有扫描 JSON、测量候选或表格输入（精度受限并在结果中标注）。
+- 可设 `CAD_AUTO_SETUP=0` 关闭底座内部的 vendor 自动下载；手动安装用 `scripts/setup.sh` 或 `scripts/ensure_base.sh`。
+
+## QTO 五专业联动（P1，可选）
+
+可与 `cad-file-reader` 及其它算量 skill 联动（可选）：识别放 `<项目目录>/识别/<slug>/`，量算层输出写 `<项目目录>/算量/<slug>/`，用底座 `scripts/qto_p1_link.py` 登记。此联动只在目录上登记输入/输出与缺口，不替代本技能既有算法、口径与复核。

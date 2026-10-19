@@ -72,6 +72,60 @@ class CadMeasureToInputTest(unittest.TestCase):
             self.assertEqual(rows[4]["做法编号"], "地101")
             self.assertEqual(rows[4]["节点编号"], "A")
 
+    def test_imports_interior_finish_and_insulation_candidates_all_review(self):
+        payload = {
+            "schema": "cad-interior-finish-geometry/v1",
+            "components": [
+                {"source_id": "floor-1", "system": "floor", "category": "floor_layer", "raw": "地面做法 瓷砖", "evidence": [{"text": "地面做法 瓷砖", "layer": "INT-FLOOR", "coord": [1, 2]}]},
+                {"source_id": "ins-1", "system": "insulation", "category": "insulation", "raw": "外墙外保温 岩棉", "evidence": [{"text": "外墙外保温 岩棉", "layer": "INT-WALL-保温"}]},
+            ],
+            "references": [
+                {"source_id": "ref-1", "reference_type": "finish_code", "value": "DM-01", "raw": "DM-01", "evidence": [{"text": "DM-01", "layer": "TITLE"}]},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "finish.json"
+            out = root / "decor.csv"
+            src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--interior-finish", str(src), "--out", str(out), "--floor", "三层"], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with out.open(encoding="utf-8-sig") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 3)
+            self.assertTrue(all(row["需核对"] == "是" for row in rows))
+            self.assertEqual(rows[0]["部位类型"], "待确认-地面")
+            self.assertEqual(rows[1]["部位类型"], "待确认-保温")
+            self.assertEqual(rows[2]["做法编号"], "DM-01")
+
+    def test_imports_local_notes_text_as_review_evidence(self):
+        payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "measure.json"
+            notes = root / "finish-ocr.txt"
+            out = root / "decor.csv"
+            src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            notes.write_text(
+                "外墙外保温 120厚岩棉 传热系数需复核\n"
+                "地下室顶板 2厚聚氨酯防水涂料\n"
+                "无关说明文字\n",
+                encoding="utf-8",
+            )
+            proc = subprocess.run([
+                sys.executable, str(SCRIPT), "--measurements", str(src),
+                "--notes-text", str(notes), "--out", str(out), "--floor", "四层",
+            ], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with out.open(encoding="utf-8-sig") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 2)
+            self.assertTrue(all(row["需核对"] == "是" for row in rows))
+            self.assertEqual(rows[0]["部位类型"], "待确认-保温")
+            self.assertEqual(rows[1]["部位类型"], "待确认-防水")
+            self.assertIn("OCR 文本证据", rows[0]["说明"])
+            self.assertEqual(rows[0]["做法编号"], "")
+
     def test_validate_skipped_when_base_missing(self):
         payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
         with tempfile.TemporaryDirectory() as temp:

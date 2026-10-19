@@ -1,4 +1,46 @@
+# 更新记录
+## v0.9.20 — 2026-10-19（三平台发布对齐）
+
+- 发布对齐：以本机为规范源同步三平台；含 qto-project/v1 联动契约与 zero-config 底座默认仓库。
+## P1 联动（2026-10-19，文档说明）
+
+- 新增与 `cad-file-reader` 的目录级联动说明：识别放 `<项目目录>/识别/<slug>/`，量算输出写 `<项目目录>/算量/<slug>/`，可用底座 `scripts/qto_p1_link.py` 登记；不改算法与口径。
+
+## 0.9.14 — 2026-10-18（第三批补齐：精装图审 27/27 全量）
+
+- `2#4#楼会展中心精装图审` zip 全部 27 个 DWG 回归完成：首 5 张 + 补齐 22 张 = 27/27 通过（components 主键；做法/立面/节点/平面系统图 geometry=0 属预期，记入复核）。
+- 明细：`batch_results/zhuangshi-suanliang/cad-file-reader-ts-fig-1.report.json` + `cad-file-reader-ts-fig-r1..r5.report.json`。
+## 0.9.13 — 2026-10-18（第三批：精装图审真图回归）
+
+- 精装图审 zip 本机解压 27 个 DWG；本轮按每批 5 张跑 `2#4#楼会展中心精装图审` 首 5 张（设计说明做法表、1层大厅立面、通用节点一、2层平面系统、B展厅平立面）5/5 通过（components+references 主键；geometry=0 属做法/立面/节点类预期）。
+- 明细落 `work/real_regression/batch_results/zhuangshi-suanliang/cad-file-reader-ts-fig-1.report.json`。
+## 0.9.12 — 2026-10-18（第二期真图回归：31 例 + PDF 节点 10 例）
+
+- 31 例原图 30/31 通过；1 例 `会展PM（布局+精装改地下电梯厅）` 原 DWG 无法解析，在本机找到 2 张同项目可解析会展PM替代版并通过（2/2 pass）。
+- 另用 `cad_pdf_ocr.sh --classify-only` 对本机 10 张钢结构节点/防水节点 PDF 做本机 OCR 分类回归，10/10 pass。
+- 自检 `run_preflight.sh` 全量 5 项通过，发布合规扫描 problems=0。
+
+## 0.9.11 — 2026-10-16（保温专篇/做法表文字证据链路）
+- `scripts/cad_measure_to_input.py` 新增 `notes_text_rows()` 与 `--notes-text`（可重复）：从本地建筑说明/OCR 文本按部位关键词（保温/防水/屋面/外墙/墙面/地面/顶棚/踢脚）生成“待核对”装饰输入行，只搬运原文证据，不解析厚度/面积/材料消耗，不自动绑定做法编号，`final_quantity=false`。
+- 新增单测：断言“外墙外保温…岩棉”→“待确认-保温”、“地下室顶板…防水”→“待确认-防水”。
+- 真图验证：会展中心建筑做法说明 PDF（字体编码损坏）改用 image-ocr 400dpi+table 本地 OCR，4 页产出可读文本（`外墙外保温…120厚岩棉 60KG/M3`、`沿外墙内侧贴 20x50 高挤塑聚苯板保温层`、`80 厚阻燃型挤塑聚苯乙烯泡沫板`、`屋面…120厚保温岩棉` 等）；用该 OCR 文本经 `--notes-text` 生成 104 条待核对证据行（防水 61/地面 20/保温 14/屋面 4/顶棚 3/墙面 2）。
+- 边界：酒店建筑总说明 DWG 的做法表正文以 ACET-LAY 块/表存在，纯文字扫描读不到正文，需转 DXF 或块展开才能精确映射。
+- 自测：`run_preflight.sh` 全量 5 项通过，发布合规扫描 problems=0。
+
+## 0.9.10 — 2026-10-12（真图回归纳入发布预检，文档修正）
+- 新增 `scripts/run_preflight.sh`：全量自测 → 发布合规扫描 → 真图回归（复用 cad 底座，--manifest 强制），发布前统一入口。
+- README/SKILL.md 明确 `scripts/cad_measure.sh` 属于识图底座 cad-file-reader，在底座目录执行，避免发布包误判缺失脚本。
+- `ensure_base.sh` 保留 SHA-256 完整性校验；默认底座版本 cad-file-reader 0.28.5。
+
 ## 更新记录
+
+## 0.9.6 — 2026-10-12（底座自动安装加固）
+
+- `ensure_base.sh` 增加 cad-file-reader 完整包 SHA-256 校验（从同 Release 下载 SHA256SUMS），校验失败拒绝安装与执行。
+- 自动安装底座前校验包内 manifest 版本；默认底座版本升至 0.28.1。
+- 平台安全扫描合规：自动下载底座改为带完整性校验、版本固定。
+
+
 
 # 更新记录
 
@@ -69,3 +111,6 @@
 - 创建装饰算量技能。
 - 支持地面、墙面、顶棚、踢脚、防水、外墙等基面量计算。
 - 支持做法编号映射材料、损耗、面砖块数和缺项清单。
+
+- 新增与 `cad-file-reader` 的目录级联动说明：识别放 `<项目目录>/识别/<slug>/`，量算输出写 `<项目目录>/算量/<slug>/`，可用底座 `scripts/qto_p1_link.py` 登记；不改算法与口径。
+

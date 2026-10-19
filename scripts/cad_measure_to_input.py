@@ -211,6 +211,123 @@ def descriptive_rows(payload: dict[str, Any], floor: str, zone: str) -> list[dic
     return rows
 
 
+def interior_finish_rows(payload: dict[str, Any], floor: str, zone: str) -> list[dict[str, str]]:
+    """把 cad-interior-finish-geometry 中间数据转成待核对装饰输入行。
+
+    只搬运识图候选和做法/做法表证据；不把候选面积当正式量，做法编号仍须人工核对。
+    """
+    rows: list[dict[str, str]] = []
+    part_by_system = {
+        "floor": "待确认-地面",
+        "wall": "待确认-墙面",
+        "ceiling": "待确认-顶棚",
+        "skirting": "待确认-踢脚",
+        "waterproof": "待确认-防水",
+        "insulation": "待确认-保温",
+        "furniture": "待确认-固定家具",
+    }
+    def evidence_text(item: dict[str, Any]) -> str:
+        ev = (item.get("evidence") or [{}])[0] if isinstance(item.get("evidence"), list) else {}
+        bits = []
+        for key in ("text", "layer", "file", "sheet", "kind", "space"):
+            value = ev.get(key) if isinstance(ev, dict) else None
+            if value not in (None, ""):
+                bits.append(f"{key}={value}")
+        coord = ev.get("coord") if isinstance(ev, dict) else None
+        if coord:
+            bits.append(f"coord={coord}")
+        return "；".join(bits)
+
+    for item in payload.get("components") or []:
+        if not isinstance(item, dict):
+            continue
+        system = str(item.get("system") or "")
+        category = str(item.get("category") or "")
+        if system not in part_by_system and category not in {"floor_layer", "wall_finish", "ceiling_finish", "skirting", "waterproof", "insulation"}:
+            continue
+        row = blank()
+        row.update({
+            "楼层": floor,
+            "区域": zone,
+            "房间": room_name(item) or f"CAD{item.get('file') or item.get('source_id') or '装饰候选'}",
+            "部位类型": part_by_system.get(system, "待确认-装饰"),
+            "做法名称": str(item.get("raw") or category or "CAD装饰做法候选")[:120],
+            "做法类型": "通用",
+            "间数": "1",
+            "说明": f"cad-interior-finish:{category or system}；{evidence_text(item)}；final_quantity=false",
+            "依据": f"cad-file-reader:cad-interior-finish-geometry:{item.get('source_id') or item.get('file') or ''}",
+            "需核对": "是",
+        })
+        rows.append(row)
+
+    for item in payload.get("references") or []:
+        if not isinstance(item, dict):
+            continue
+        ref_type = str(item.get("reference_type") or "")
+        code = str(item.get("value") or "")
+        if ref_type == "finish_code" or (code and any(code.upper().startswith(x) for x in ("DM", "QM", "WM", "CM", "JM"))):
+            row = blank()
+            row.update({
+                "楼层": floor, "区域": zone, "房间": room_name(item) or "CAD做法编号候选",
+                "部位类型": "待确认-做法", "做法编号": code,
+                "做法名称": str(item.get("raw") or "CAD做法编号候选")[:120], "做法类型": "通用",
+                "间数": "1", "说明": f"做法编号候选；{evidence_text(item)}；须与建筑说明/做法表人工核对",
+                "依据": f"cad-file-reader:cad-interior-finish-geometry:{item.get('source_id') or item.get('file') or ''}",
+                "需核对": "是",
+            })
+            rows.append(row)
+    return rows
+
+
+def notes_text_rows(text_paths: list[str], floor: str, zone: str) -> list[dict[str, str]]:
+    """把本地图纸说明/OCR 文本中的做法证据转成待核对装饰输入行。
+
+    只搬运原文证据，不解析厚度/面积/材料消耗，不自动绑定做法编号。
+    """
+    part_keywords = [
+        ("待确认-保温", ("保温", "岩棉", "挤塑", "聚苯板", "燃烧性能", "传热系数")),
+        ("待确认-防水", ("防水", "防潮", "卷材", "涂膜", "止水")),
+        ("待确认-屋面", ("屋面", "屋面板", "排水坡")),
+        ("待确认-外墙", ("外墙", "外保温", "外饰面")),
+        ("待确认-墙面", ("墙面", "内墙", "乳胶漆", "壁纸", "石材")),
+        ("待确认-地面", ("地面", "楼面", "铺装", "地坪")),
+        ("待确认-顶棚", ("顶棚", "吊顶", "天花")),
+        ("待确认-踢脚", ("踢脚", "脚线")),
+    ]
+    rows: list[dict[str, str]] = []
+    for raw_path in text_paths:
+        path = Path(raw_path).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for line_no, line in enumerate(text.splitlines(), 1):
+            text_line = " ".join(line.split()).strip()
+            if len(text_line) < 4:
+                continue
+            part = ""
+            for candidate, keywords in part_keywords:
+                if any(k.lower() in text_line.lower() for k in keywords):
+                    part = candidate
+                    break
+            if not part:
+                continue
+            row = blank()
+            row.update({
+                "楼层": floor,
+                "区域": zone,
+                "房间": f"文字证据-{path.stem}",
+                "部位类型": part,
+                "做法名称": text_line[:120],
+                "做法类型": "通用",
+                "间数": "1",
+                "说明": f"本地说明/OCR 文本证据；{path.name}:{line_no}；仅作做法与部位定位，厚度、面积、损耗和材料量须人工核对；final_quantity=false",
+                "依据": f"local-text:{path}:{line_no}",
+                "需核对": "是",
+            })
+            rows.append(row)
+    return rows
+
+
 def old_rooms(item: dict[str, Any]) -> str:
     return str(item.get("source_id") or "CAD门窗候选")
 
@@ -220,10 +337,14 @@ def geo_file(item: dict[str, Any]) -> Any:
 
 
 def convert(payload: dict[str, Any], floor: str, zone: str,
-            descriptive: dict[str, Any] | None = None) -> tuple[list[dict[str, str]], int]:
+            descriptive: dict[str, Any] | None = None,
+            interior_finish: dict[str, Any] | None = None,
+            notes_text: list[str] | None = None) -> tuple[list[dict[str, str]], int]:
     measurements = payload.get("measurements")
-    if not isinstance(measurements, list):
+    if measurements is None and interior_finish is None:
         raise ValueError("输入 JSON 缺少 measurements 数组")
+    if not isinstance(measurements, list):
+        measurements = []
     rows: list[dict[str, str]] = []
     skipped = 0
     for item in measurements:
@@ -237,31 +358,42 @@ def convert(payload: dict[str, Any], floor: str, zone: str,
         rows.append(row)
     if descriptive:
         rows.extend(descriptive_rows(descriptive, floor, zone))
+    if interior_finish:
+        rows.extend(interior_finish_rows(interior_finish, floor, zone))
+    if notes_text:
+        rows.extend(notes_text_rows(notes_text, floor, zone))
     return rows, skipped
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="cad-file-reader 识别/测量候选 → 装饰算量输入表草稿（全部需核对）")
-    parser.add_argument("--measurements", required=True, help="cad-measurement-candidates.json")
+    parser.add_argument("--measurements", help="cad-measurement-candidates.json（与 --interior-finish 至少提供一个）")
     parser.add_argument("--out", required=True, help="输出 CSV")
     parser.add_argument("--floor", default="", help="统一填写楼层")
     parser.add_argument("--zone", default="CAD识图候选", help="区域名称")
     parser.add_argument("--descriptive", default=None,
                         help="可选：cad-descriptive-geometry 中间数据 JSON（房间/墙段/吊顶/洞口/做法索引）")
+    parser.add_argument("--interior-finish", default=None,
+                        help="可选：cad-interior-finish-geometry 中间数据 JSON（装饰/保温做法候选）")
+    parser.add_argument("--notes-text", action="append", default=[],
+                        help="可选：本地建筑说明/PDF OCR 文本；可重复传入，只生成待核对做法证据行")
     parser.add_argument("--validate", "--no-validate", dest="validate", action=argparse.BooleanOptionalAction,
                         default=True, help="导入前用 cad-file-reader 校验交接 JSON（缺底座时静默跳过）")
     args = parser.parse_args()
 
-    source = Path(args.measurements).expanduser().resolve()
+    source = Path(args.measurements).expanduser().resolve() if args.measurements else None
     target = Path(args.out).expanduser().resolve()
-    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload = json.loads(source.read_text(encoding="utf-8")) if source else {}
     descriptive = None
     if args.descriptive:
         descriptive = json.loads(Path(args.descriptive).expanduser().resolve().read_text(encoding="utf-8"))
-    rows, skipped = convert(payload, args.floor, args.zone, descriptive)
+    interior_finish = None
+    if args.interior_finish:
+        interior_finish = json.loads(Path(args.interior_finish).expanduser().resolve().read_text(encoding="utf-8"))
+    rows, skipped = convert(payload, args.floor, args.zone, descriptive, interior_finish, args.notes_text)
 
     validation: dict[str, Any] | None = None
-    if args.validate:
+    if args.validate and source is not None:
         validation = cad_validate(source)
         if validation is not None and not validation.get("ok"):
             for row in rows:
@@ -274,8 +406,10 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(rows)
     print(json.dumps({
-        "source": str(source),
+        "source": str(source) if source else "",
         "descriptive": args.descriptive,
+        "interior_finish": args.interior_finish,
+        "notes_text": args.notes_text,
         "output": str(target),
         "rows": len(rows),
         "skipped": skipped,

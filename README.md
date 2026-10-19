@@ -1,8 +1,5 @@
 # 装饰算量（zhuangshi-suanliang）v0.9.0
 
-> 📦 **SkillHub 安装**：`skillhub install zhuangshi-suanliang`　|　仓库：[lisong2003-lgtm/zhuangshi-suanliang](https://github.com/lisong2003-lgtm/zhuangshi-suanliang)
-
-
 用于从房间类型或建筑/结构/装修做法信息快速生成装饰概算和物资计划。输出可核对台账、计算式、规范参考和待确认项。
 
 ## 0.9.0 优化概览
@@ -96,7 +93,10 @@ python3 \
 
 ## CAD 测量候选交接
 
+`cad_measure.sh` 是识图底座 cad-file-reader 的脚本（本技能复用底座输入，仅在 cad-file-reader 技能目录下存在）：
+
 ```bash
+# 在识图底座 cad-file-reader 技能目录执行：
 scripts/cad_measure.sh 描述几何/图纸详情.descriptive.json --out-dir 测量候选
 scripts/cad_measure_to_input.py --measurements 测量候选/cad-measurement-candidates.json \
   --out CAD导入_待核对.csv --floor 二层
