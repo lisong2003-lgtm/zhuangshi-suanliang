@@ -386,7 +386,7 @@ def main() -> int:
                         help="可选：cad-interior-finish-geometry 中间数据 JSON（装饰/保温做法候选）")
     parser.add_argument("--notes-text", action="append", default=[],
                         help="可选：本地建筑说明/PDF OCR 文本；可重复传入，只生成待核对做法证据行")
-    parser.add_argument("--validate", "--no-validate", dest="validate", action=argparse.BooleanOptionalAction,
+    parser.add_argument("--validate", dest="validate", action=argparse.BooleanOptionalAction,
                         default=True, help="导入前用 cad-file-reader 校验交接 JSON（缺底座时静默跳过）")
     args = parser.parse_args()
 
