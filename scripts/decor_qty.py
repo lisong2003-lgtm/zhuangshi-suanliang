@@ -6,8 +6,19 @@
 """
 from __future__ import annotations
 
+try:
+    import os as _boot_os, sys as _boot_sys
+    _boot_sys.path.insert(0, _boot_os.path.dirname(_boot_os.path.abspath(__file__)))
+    import pyboot as _boot_pyboot
+    _boot_pyboot.ensure_utf8_io()
+except Exception:
+    pass
+
+
 import argparse
 import csv
+
+import i18n
 import json
 import math
 import re
@@ -1090,20 +1101,26 @@ def _build_basis(results: list[dict[str, Any]], standards: dict[str, Any]) -> li
 
 def main() -> int:
     base = Path(__file__).resolve().parents[1]
-    parser = argparse.ArgumentParser(description="装饰工程快速概算与物资计划算量")
-    parser.add_argument("--input", required=True, help="输入 CSV/TSV/XLSX")
-    parser.add_argument("--out-dir", required=True, help="输出目录")
+    raw = sys.argv[1:]
+    lang = i18n.argv_lang(raw)
+    desc = ("Decoration QTO & material plan (detailed / quick room templates)."
+            if lang == "en" else "装饰工程快速概算与物资计划算量")
+    parser = argparse.ArgumentParser(description=desc)
+    i18n.add_lang_arg(parser, default=lang)
+    parser.add_argument("--input", required=True, help="input CSV/TSV/XLSX" if lang == "en" else "输入 CSV/TSV/XLSX")
+    parser.add_argument("--out-dir", required=True, help="output directory" if lang == "en" else "输出目录")
     parser.add_argument("--rules", default=str(base / "rules" / "装饰做法.json"))
     parser.add_argument("--standards", default=str(base / "rules" / "国家规范要求.json"))
     parser.add_argument("--room-templates", default=str(base / "rules" / "标准房间模板.json"))
     parser.add_argument("--quantity-rules", default=str(base / "rules" / "清单工程量规则.json"))
     parser.add_argument("--price-rules", default=str(base / "rules" / "概算综合单价.json"))
     parser.add_argument("--material-rules", default=str(base / "rules" / "物资分类规则.json"))
-    parser.add_argument("--project-rules", default="", help="项目专属规则 JSON，节点规则优先")
-    parser.add_argument("--project", default="装饰工程")
-    parser.add_argument("--level", default="", help="报表标题用楼层；如需筛选请先用表格筛选")
+    parser.add_argument("--project-rules", default="", help="project-specific rules JSON (overrides)" if lang == "en" else "项目专属规则 JSON，节点规则优先")
+    parser.add_argument("--project", default="装饰工程",
+                        help="report title / project name" if lang == "en" else "工程名称")
+    parser.add_argument("--level", default="", help="floor label in report title" if lang == "en" else "报表标题用楼层；如需筛选请先用表格筛选")
     parser.add_argument("--note", default="快速概算与物资计划口径；正式清单、计价和采购以合同清单、地方规则及设计文件为准。")
-    args = parser.parse_args()
+    args = parser.parse_args(raw)
 
     out_dir = Path(args.out_dir).expanduser().resolve()
     paths = {
@@ -1119,7 +1136,10 @@ def main() -> int:
         paths["项目规则"] = Path(args.project_rules).expanduser().resolve()
     for label, path in paths.items():
         if not path.exists():
-            print(f"❌文件不存在（{label}）：{path}", file=sys.stderr)
+            if lang == "en":
+                print(f"❌ file not found - {label}: {path}", file=sys.stderr)
+            else:
+                print(f"❌文件不存在（{label}）：{path}", file=sys.stderr)
             return 2
 
     try:
@@ -1141,11 +1161,11 @@ def main() -> int:
             with paths["项目规则"].open("r", encoding="utf-8") as f:
                 project_data = json.load(f)
     except Exception as exc:
-        print(f"❌读取失败：{exc}", file=sys.stderr)
+        print(("❌ read failed: " if lang == "en" else "❌读取失败：") + str(exc), file=sys.stderr)
         return 2
 
     if not raw_rows:
-        print("❌输入表没有数据行", file=sys.stderr)
+        print("❌ input table has no data rows" if lang == "en" else "❌输入表没有数据行", file=sys.stderr)
         return 2
 
     if is_quick_table(raw_rows):
@@ -1157,7 +1177,7 @@ def main() -> int:
 
     header_issues = validate_headers(rows)
     if header_issues:
-        print("❌表头校验失败：" + "；".join(header_issues), file=sys.stderr)
+        print(("❌ header validation failed: " if lang == "en" else "❌表头校验失败：") + "；".join(header_issues), file=sys.stderr)
         return 2
 
     validation = validate_rows(rows)
@@ -1221,7 +1241,7 @@ def main() -> int:
             missing, basis, material_plan
         )
     except Exception as exc:
-        print(f"❌Excel台账生成失败：{exc}", file=sys.stderr)
+        print(("❌ Excel workbook generation failed: " if lang == "en" else "❌Excel台账生成失败：") + str(exc), file=sys.stderr)
         return 2
 
     report: list[str] = []
@@ -1320,11 +1340,18 @@ def main() -> int:
     report.append("内置规范值和参考单价仅是算量提示，不代表规范条文或市场价原文；正式口径以现行规范、设计文件和项目约定为准。")
     (out_dir / "装饰概算物资计划报告.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 
-    print(f"✅已生成：{out_dir}")
-    print(
-        f"概算行：{len(estimates)}；物资计划项：{len(material_plan)}；"
-        f"明细材料行：{len(all_details)}；缺项/需核对/重复行：{len(missing)}"
-    )
+    if lang == "en":
+        print(f"Generated: {out_dir}")
+        print(
+            f"estimate rows: {len(estimates)}; material plan items: {len(material_plan)}; "
+            f"detail rows: {len(all_details)}; missing/review/dup rows: {len(missing)}"
+        )
+    else:
+        print(f"✅已生成：{out_dir}")
+        print(
+            f"概算行：{len(estimates)}；物资计划项：{len(material_plan)}；"
+            f"明细材料行：{len(all_details)}；缺项/需核对/重复行：{len(missing)}"
+        )
     return 0
 
 
