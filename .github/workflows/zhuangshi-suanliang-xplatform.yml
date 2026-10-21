@@ -25,6 +25,7 @@ jobs:
       PYTHONIOENCODING: utf-8
       PYTHONUTF8: "1"
     steps:
+      - uses: actions/checkout@v4
       - name: Setup openpyxl
         run: python -m pip install --disable-pip-version-check --no-input -q openpyxl
 
