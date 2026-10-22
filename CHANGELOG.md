@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.9.22 (2026-10-22)
+- lis-skill-bus 可选联动（试点）：scripts/zhuangshi_statesync.py push/pull 对接 cad-contract/v1（rooms/room_schedules/practices/room_boundaries 等），新 Windows zhuangshi_statesync.cmd（未实机跑通，仅静态校验）；bus 未装自动降级。算法/口径不变。
 
 ## 0.9.21 (2026-10-21)
 - 三平台对齐（cross-platform + i18n overseas）：README.en.md、`--lang en|zh` 主入口、i18n.py、CFI 三平台 workflow 全绿。
@@ -48,13 +50,11 @@
 - 平台安全扫描合规：自动下载底座改为带完整性校验、版本固定。
 
 
-
 # 更新记录
 
 ## 0.9.0 — 2026-10-05
 
 对接 cad-file-reader 0.25.0 底座增强：旋转标注聚合、图例匹配、契约置信度/跨专业引用字段；版本门槛升至 `cad-file-reader >= 0.25.0`。
-
 
 ## 0.8.0 — 2026-10-05
 
