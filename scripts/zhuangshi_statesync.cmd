@@ -1,10 +1,7 @@
 @echo off
-rem zhuangshi-suanliang -> lis-skill-bus optional wiring (thin wrapper). Windows 兼容启动器。
-setlocal EnableExtensions
-set PY=python
-where py >nul 2>nul
-if not errorlevel 1 set PY=py
-if not "%PYTHON%"=="" set PY=%PYTHON%
-if not "%CODEX_PYTHON%"=="" set PY=%CODEX_PYTHON%
-"%PY%" "%~dp0zhuangshi_statesync.py" %*
-exit /b %errorlevel%
+rem zhuangshi_statesync launcher (ASCII only on purpose; untested on real Windows)
+setlocal
+set "HERE=%~dp0"
+set "PY=%PYTHON%"
+if not defined PY set "PY=python"
+"%PY%" "%HERE%zhuangshi_statesync.py" %*

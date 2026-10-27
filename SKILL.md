@@ -2,7 +2,7 @@
 name: zhuangshi-suanliang
 slug: zhuangshi-suanliang
 displayName: 装饰算量 · 概算与物资计划
-version: 0.9.23
+version: 0.9.24
 platforms: [macos, windows, linux]
 author: lis
 license: CC-BY-NC-SA-4.0
@@ -14,7 +14,7 @@ locale: zh-CN
 locales: [zh-CN, en-US]
 ---
 
-# 装饰算量 v0.9.0
+# 装饰算量 v0.9.24
 
 ## 0.7.0 优化概况
 
@@ -182,8 +182,17 @@ scripts/cad_measure_to_input.py --measurements 测量候选/cad-measurement-cand
 ④ 常见本机开发副本（`tan/work` 等，最后才回退）。
 命中 dev/临时副本时 stderr 会输出告警行「bus 命中来源：<路径>（临时副本/dev，非正式安装）」，正式路径输出「（正式安装）」；找不到 bus 时不报错，直接写 `$HOME/.codex/skills/.skillbus/state.json`（与 bus 同构，后续装 bus 可无缝读取）。 无 MCP/无 bus 不影响任何算量能力；本技能算法、口径、扣减、损耗、分账与台账逻辑不变。
 
-- Windows 接线：GitHub 完整包 scripts/zhuangshi_statesync.cmd push/pull（SkillHub 版无 .cmd 时用 `python scripts/zhuangshi_statesync.py push/pull` 等价调用）；等价 lis-skill-bus/integration/zhuangshi_publish/pull_contract.cmd。Windows 未实机跑通，仅静态校验通过（CRLF 行尾；无 /Users、/bin/sh、python3 硬编码；py 启动器 + %PYTHON%/%CODEX_PYTHON% 回退；默认路径用 %USERPROFILE%\.codex）。
+- Windows 接线：GitHub 完整包 scripts/zhuangshi_statesync.cmd push/pull（.cmd 已随包提供；macOS/Linux 用 `bash scripts/zhuangshi_statesync.sh` 等价调用）；等价 lis-skill-bus/integration/zhuangshi_publish_contract.sh / zhuangshi_pull_contract.sh。Windows 未实机跑通，仅静态校验通过（CRLF 行尾；无 /Users、/bin/sh、python3 硬编码；py 启动器 + %PYTHON%/%CODEX_PYTHON% 回退；默认路径用 %USERPROFILE%\.codex）。
 
 ## QTO 五专业联动（P1，可选）
 
-可与 `cad-file-reader` 及其它算量 skill 联动（可选）：识别放 `<项目目录>/识别/<slug>/`，量算层输出写 `<项目目录>/算量/<slug>/`，用底座 `scripts/qto_p1_link.py` 登记。此联动只在目录上登记输入/输出与缺口，不替代本技能既有算法、口径与复核。
+可与 `cad-file-reader` 及其它算量 skill 联动（可选）：识别放 `<项目目录>/识别/<slug>/`，量算层输出写 `<项目目录>/算量/<slug>/`，用底座 `<底座>/scripts/qto_p1_link.py` 登记。此联动只在目录上登记输入/输出与缺口，不替代本技能既有算法、口径与复核。
+
+## 环境与运行时（自动解析，无需手工配置）
+
+- 所有 `scripts/*.sh` 入口都 `source scripts/runtime_env.sh`，由它统一解析三件事：
+  1. **解释器**：`CAD_SKILL_PYTHON` / `CODEX_PYTHON` → Codex 运行时 → PATH 上的 `python3.12/3.11` → `python3`（要求 ≥3.10）；
+  2. **识图底座**：`CAD_SKILL_DIR` → 同级 `../cad-file-reader` → `~/.workbuddy/skills/*/cad-file-reader` → `~/.claude` → `~/.codex`；
+  3. **依赖路径**：把「本技能 scripts + 底座 scripts + 底座 vendor」拼进 `PYTHONPATH`，`ezdxf / ezdwg / openpyxl` 等**无需全局 pip 安装**。
+- 推荐用对应的 `bash scripts/<入口>.sh`；直接 `python3 <入口>.py` 只在全局已装齐依赖时可用。
+- 依赖缺失时按 `requirements.txt` 安装：`python3 -m pip install -r requirements.txt`。

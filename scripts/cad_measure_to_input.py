@@ -58,8 +58,10 @@ def cad_validate(input_path: Path) -> dict[str, Any] | None:
     """用 cad-file-reader 的 cad_validate.sh 校验交接 JSON；找不到底座时返回 None。"""
     base = os.environ.get("CAD_SKILL_DIR")
     if not base:
-        for d in (Path.home() / ".codex/skills/cad-file-reader",
-                  Path.home() / ".claude/skills/cad-file-reader"):
+        for d in (Path(__file__).resolve().parent.parent.parent / "cad-file-reader",
+                  *sorted(Path.home().glob(".workbuddy/skills/*/cad-file-reader")),
+                  Path.home() / ".claude/skills/cad-file-reader",
+                  Path.home() / ".codex/skills/cad-file-reader"):
             if d.is_dir():
                 base = str(d)
                 break
@@ -70,7 +72,7 @@ def cad_validate(input_path: Path) -> dict[str, Any] | None:
         return None
     try:
         r = subprocess.run(
-            [str(validator), str(input_path)],
+            ["bash", str(validator), str(input_path)],
             capture_output=True, text=True, timeout=120,
         )
     except Exception as exc:

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.24
+
+- **新增** `scripts/runtime_env.sh`，入口脚本统一解析解释器与底座，并自动注入底座 vendor（openpyxl 等无需全局安装）。
+- **修复** 底座探测与自动安装落点原先硬编码 `~/.codex`，现支持同级目录及 WorkBuddy 技能目录。
+- **修复** `.sh` 缺可执行位；`scripts/tests/` 缺 `__init__.py`。
+- **新增** `requirements.txt`（含可选的 `markitdown`，用于读 Word/Excel/PDF 依据）、Windows 启动器 `decor_qty.cmd` / `cad_measure_to_input.cmd` / `zhuangshi_statesync.cmd`。
+- **文档** 标题版本由 v0.9.0 更正为 v0.9.24；命令统一改为 `bash scripts/*.sh`。
+- **修复（发布兼容）** `cad_measure_to_input.py` 调用 `cad_validate.sh` 改为 `bash` 启动；`ensure_base.sh` / `setup.sh` 内部调用同步改 `bash`。
+- **修复（跨 Agent）** `cad_measure_to_input.py` 底座探测增加同级目录与 `~/.workbuddy/skills/*`。
+
 ## 0.9.23 (2026-10-23)
 - 修复 SkillHub 版 Windows 无 `.cmd` 时的接线说明：改为 `python scripts/*_statesync.py` 等价调用（bus 安装用 `python install_py.py --apply`）；GitHub 完整包保留 `.cmd`。平台发布调整，算法/契约/口径不变。
 

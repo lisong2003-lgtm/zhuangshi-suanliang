@@ -10,8 +10,8 @@ Use for solid/interior (decoration) takeoff and material planning such as gypsum
 
 ## Quick start
 ```bash
-python3 scripts/decor_qty.py --input 明细表.csv --out-dir out
-python3 scripts/decor_qty.py --input 快速房间表.xlsx --out-dir out --level 一层
+bash scripts/decor_qty.sh --input 明细表.csv --out-dir out
+bash scripts/decor_qty.sh --input 快速房间表.xlsx --out-dir out --level 一层
 ```
 
 ## Install across the three platforms
