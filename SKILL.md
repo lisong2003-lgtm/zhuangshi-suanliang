@@ -2,7 +2,7 @@
 name: zhuangshi-suanliang
 slug: zhuangshi-suanliang
 displayName: 装饰算量 · 概算与物资计划
-version: 0.9.24
+version: 0.9.25
 platforms: [macos, windows, linux]
 author: lis
 license: CC-BY-NC-SA-4.0
@@ -32,6 +32,16 @@ locales: [zh-CN, en-US]
 - 防水：计算上翻、附加层、卷材搭接，并按内置规范参考校验。
 
 ## 前置
+## 强依赖底座说明（cad-file-reader 强依赖，不做弱化）
+
+本技能采用**识图与算量分离**的固定架构，`cad-file-reader` 是**强依赖底座**，不是可选增强：
+
+- **为什么必须强依赖**：DWG/DXF/DWT/PDF 的解析、图层/文字/块/图框/几何提取、识图候选和测量候选全部集中在底座完成，一次解图、全项目复用，保证证据坐标与契约一致。本技能只做本专业口径的量算、扣减、损耗、分账和台账，不重复解析图纸。
+- **分工**：底座输出 `final_quantity=false` 的识图/测量候选；本技能输出本专业概算底稿/物资计划草稿（`final_quantity=true` 仅本专业口径）。
+- **版本约束**：底座最低版本以各技能 `SKILL.md`「前置/依赖」写的 `>=x.y.z` 为准；缺底座或版本不够时明确报错，不静默用错误数据。
+- **安装**：先装底座（`cad-file-reader` 的 `scripts/setup.sh`），再装本技能；运行时底座可在 `SKILL_NO_BASE=1` 下退化为只读已有扫描/候选/表格输入，但精度受限并必须在结果标注。
+- **联动**：装有 lis-skill-bus 时，底座与各算量技能通过 `cad-contract/v1` 共享契约，同一张图只解一次；不装 bus 时各技能自动降级为各自 `state/`，功能不丢失。
+
 
 - 读 CAD 用已安装的 `cad-file-reader >= 0.25.0`；读 Word/Excel/PDF 用 `markitdown`。
 - 不自行解析大 DWG，只调用读图能力；第一次输入图纸先建索引，后续同图复用。
