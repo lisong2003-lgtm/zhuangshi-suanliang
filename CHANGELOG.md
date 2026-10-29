@@ -1,9 +1,20 @@
 # Changelog
 
+## 0.9.27
+
+- **更新发布** 补 CHANGELOG 详细条目与 README.en 版本号；三端（Codex/WorkBuddy/发布仓库）同版本同内容再次校验通过。tujian-suanliang 的 manifest tests 仅保留真实存在的 `scripts/self_test.py`（完整 tests 见本机 shangwu-suanliang 商务版）。
+- 算法、契约、权限、SKILL.md 正文与上一版无变化。
+
+## 0.9.26
+
+- **授权与保留** 新增「授权与保留」段落：作者 lis 声明本技能可商用/可再分发/可对外授权，商用前按双许可说明确认是否需联系作者申报。
+- **脱敏（发布合规）** rules 中的公司内部来源字段由「公司知识库/…/规范图集」改为「公开规范与行业通用做法整理」，不再引用公司内部资料路径。
+- **版本对齐** 本机 `~/.codex/skills`、`~/.workbuddy/skills` 与发布仓库同步同版本；算法、契约、兼容性与上一版一致，未改业务逻辑。
+
 ## 0.9.24
 
 - **新增** `scripts/runtime_env.sh`，入口脚本统一解析解释器与底座，并自动注入底座 vendor（openpyxl 等无需全局安装）。
-- **修复** 底座探测与自动安装落点原先硬编码 `~/.codex`，现支持同级目录及 WorkBuddy 技能目录。
+- **修复** 底座探测与自动安装落点原先硬编码 `$HOME/.codex`，现支持同级目录及 WorkBuddy 技能目录。
 - **修复** `.sh` 缺可执行位；`scripts/tests/` 缺 `__init__.py`。
 - **新增** `requirements.txt`（含可选的 `markitdown`，用于读 Word/Excel/PDF 依据）、Windows 启动器 `decor_qty.cmd` / `cad_measure_to_input.cmd` / `zhuangshi_statesync.cmd`。
 - **文档** 标题版本由 v0.9.0 更正为 v0.9.24；命令统一改为 `bash scripts/*.sh`。

@@ -1,6 +1,6 @@
 # Interior Decoration Quantity Takeoff & Material Plan
 
-> zhuangshi-suanliang (zhuangshi-suanliang) v0.9.20 · overseas-friendly lightweight layer. 中文版见 [README.md](README.md).
+> zhuangshi-suanliang (zhuangshi-suanliang) v0.9.27 · overseas-friendly lightweight layer. 中文版见 [README.md](README.md).
 
 ## What it is
 Generates decoration budget quantities and material plans from room type, building notes, architectural/structural drawings, room decoration tables, practice tables and node details. It imports cad-file-reader length/area candidates as review inputs; method mapping, opening deductions, loss, material ledger and BOQ quantities are computed by this skill.
