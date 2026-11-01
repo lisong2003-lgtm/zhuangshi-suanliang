@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.28
+
+- **修复（发布兼容）** SkillHub 分发包（zip）不保留文件权限，装完脚本全是 644，直接执行会 permission denied。现在 `scripts/setup.sh` 与各入口脚本（`runtime_env.sh` / `ensure_runtime.sh`）首次运行时幂等补回 `scripts/*.sh`、`scripts/*.py` 的可执行位，用户无需手动 chmod。
+- **修复** `scripts/setup.sh` 里 `bash bash "$SKILL_DIR/scripts/ensure_base.sh"` 的重复 bash 会让安装第一步直接报 `bash: bash: No such file or directory`，已改为 `bash "...ensure_base.sh"`。
+- **修复（自测误报）** `scripts/self_test.py` 对未随轻量包提交的开发期单测（`scripts/tests/test_*.py`）改为「存在则校验、缺失则 SKIP」，不再让 `SELF_TEST` 因缺件判失败；Windows 专属 `.cmd` 在非 Windows 平台跳过。
+
 ## 0.9.27
 
 - **更新发布** 补 CHANGELOG 详细条目与 README.en 版本号；三端（Codex/WorkBuddy/发布仓库）同版本同内容再次校验通过。tujian-suanliang 的 manifest tests 仅保留真实存在的 `scripts/self_test.py`（完整 tests 见本机 shangwu-suanliang 商务版）。
@@ -9,7 +15,7 @@
 
 - **授权与保留** 新增「授权与保留」段落：作者 lis 声明本技能可商用/可再分发/可对外授权，商用前按双许可说明确认是否需联系作者申报。
 - **脱敏（发布合规）** rules 中的公司内部来源字段由「公司知识库/…/规范图集」改为「公开规范与行业通用做法整理」，不再引用公司内部资料路径。
-- **版本对齐** 本机 `~/.codex/skills`、`~/.workbuddy/skills` 与发布仓库同步同版本；算法、契约、兼容性与上一版一致，未改业务逻辑。
+- **版本对齐** 本机 `$CODEX_SKILLS_DIR/skills`、`~/.workbuddy/skills` 与发布仓库同步同版本；算法、契约、兼容性与上一版一致，未改业务逻辑。
 
 ## 0.9.24
 
@@ -42,11 +48,11 @@
 
 ## 0.9.14 — 2026-10-18（第三批补齐：精装图审 27/27 全量）
 
-- `2#4#楼会展中心精装图审` zip 全部 27 个 DWG 回归完成：首 5 张 + 补齐 22 张 = 27/27 通过（components 主键；做法/立面/节点/平面系统图 geometry=0 属预期，记入复核）。
+- `某项目精装图审` zip 全部 27 个 DWG 回归完成：首 5 张 + 补齐 22 张 = 27/27 通过（components 主键；做法/立面/节点/平面系统图 geometry=0 属预期，记入复核）。
 - 明细：`batch_results/zhuangshi-suanliang/cad-file-reader-ts-fig-1.report.json` + `cad-file-reader-ts-fig-r1..r5.report.json`。
 ## 0.9.13 — 2026-10-18（第三批：精装图审真图回归）
 
-- 精装图审 zip 本机解压 27 个 DWG；本轮按每批 5 张跑 `2#4#楼会展中心精装图审` 首 5 张（设计说明做法表、1层大厅立面、通用节点一、2层平面系统、B展厅平立面）5/5 通过（components+references 主键；geometry=0 属做法/立面/节点类预期）。
+- 精装图审 zip 本机解压 27 个 DWG；本轮按每批 5 张跑 `某项目精装图审` 首 5 张（设计说明做法表、1层大厅立面、通用节点一、2层平面系统、B展厅平立面）5/5 通过（components+references 主键；geometry=0 属做法/立面/节点类预期）。
 - 明细落 `work/real_regression/batch_results/zhuangshi-suanliang/cad-file-reader-ts-fig-1.report.json`。
 ## 0.9.12 — 2026-10-18（第二期真图回归：31 例 + PDF 节点 10 例）
 
@@ -57,7 +63,7 @@
 ## 0.9.11 — 2026-10-16（保温专篇/做法表文字证据链路）
 - `scripts/cad_measure_to_input.py` 新增 `notes_text_rows()` 与 `--notes-text`（可重复）：从本地建筑说明/OCR 文本按部位关键词（保温/防水/屋面/外墙/墙面/地面/顶棚/踢脚）生成“待核对”装饰输入行，只搬运原文证据，不解析厚度/面积/材料消耗，不自动绑定做法编号，`final_quantity=false`。
 - 新增单测：断言“外墙外保温…岩棉”→“待确认-保温”、“地下室顶板…防水”→“待确认-防水”。
-- 真图验证：会展中心建筑做法说明 PDF（字体编码损坏）改用 image-ocr 400dpi+table 本地 OCR，4 页产出可读文本（`外墙外保温…120厚岩棉 60KG/M3`、`沿外墙内侧贴 20x50 高挤塑聚苯板保温层`、`80 厚阻燃型挤塑聚苯乙烯泡沫板`、`屋面…120厚保温岩棉` 等）；用该 OCR 文本经 `--notes-text` 生成 104 条待核对证据行（防水 61/地面 20/保温 14/屋面 4/顶棚 3/墙面 2）。
+- 真图验证：某项目建筑做法说明 PDF（字体编码损坏）改用 image-ocr 400dpi+table 本地 OCR，4 页产出可读文本（`外墙外保温…120厚岩棉 60KG/M3`、`沿外墙内侧贴 20x50 高挤塑聚苯板保温层`、`80 厚阻燃型挤塑聚苯乙烯泡沫板`、`屋面…120厚保温岩棉` 等）；用该 OCR 文本经 `--notes-text` 生成 104 条待核对证据行（防水 61/地面 20/保温 14/屋面 4/顶棚 3/墙面 2）。
 - 边界：酒店建筑总说明 DWG 的做法表正文以 ACET-LAY 块/表存在，纯文字扫描读不到正文，需转 DXF 或块展开才能精确映射。
 - 自测：`run_preflight.sh` 全量 5 项通过，发布合规扫描 problems=0。
 
@@ -102,7 +108,7 @@
 
 ## 0.6.0 - 2026-09-18
 
-- 集成公司知识库“装饰装修与造价标准包索引”的15项规范/清单标准元数据、算量约束和构造复核要点；不复制规范原文。
+- 集成公开规范与造价标准资料的15项规范/清单标准元数据、算量约束和构造复核要点；不复制规范原文。
 - 清单规则补充计量单位、计算规则、依据、技术规范、构造要求、复核点和“是否计入损耗”字段。
 - 概算依据合并清单技术规范；Excel依据表增加知识库索引、适用部位和算量作用。
 - 报告输出知识库索引、15项标准、口径边界和适用范围。
