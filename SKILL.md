@@ -2,11 +2,11 @@
 name: zhuangshi-suanliang
 slug: zhuangshi-suanliang
 displayName: 装饰算量 · 概算与物资计划
-version: 0.9.32
+version: 0.9.33
 platforms: [macos, windows, linux]
 author: lis
 license: CC-BY-NC-SA-4.0
-description: "装饰算量：按房间类型、建筑/结构图、装修表、做法表和节点详图出装饰概算与物资计划；可导入 cad-file-reader 测量候选作待核对输入。做法映射、洞口扣减、损耗、材料台账和清单量仍由本技能算。"
+description: "装修表/做法表出装饰概算；不替代清单结算。触发词：装饰算量、装修、做法表。"
 i18n:
   en: README.en.md
   zh: README.md
