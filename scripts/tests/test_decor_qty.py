@@ -169,7 +169,7 @@ def test_excel_output_has_six_sheets():
         old_argv = sys.argv
         sys.argv = [
             "decor_qty.py", "--input", str(input_path), "--out-dir", str(out_dir),
-            "--project", "测试项目"
+            "--project", "测试项目", "--allow-manual"
         ]
         try:
             code = m.main()
@@ -287,7 +287,7 @@ def test_unmatched_material_classification_is_explicit():
 
 def test_standard_pack_has_fifteen_standards_and_metadata():
     assert standards["version"] == "0.6.0"
-    assert standards["知识库来源"].endswith("00_装饰装修造价标准包索引.md")
+    assert "公开规范" in standards["知识库来源"]  # 0.9.26 起脱敏，不再引用内部知识库路径
     assert standards["引用边界"]
     assert len(standards["标准清单"]) == 15
 
@@ -351,6 +351,129 @@ def test_basis_includes_knowledge_index_and_all_standards():
     standard_codes = {x["编号/来源"] for x in basis if x["类型"] == "国家规范参考"}
     assert len(standard_codes) == 15
     assert "GB 50411-2019" in standard_codes and "GB 50327-2001" in standard_codes
+
+
+def _run_decor(argv):
+    old = sys.argv
+    sys.argv = ["decor_qty.py"] + argv
+    try:
+        return m.main()
+    finally:
+        sys.argv = old
+
+
+def _basic_input(td):
+    headers = [
+        "楼层", "区域", "房间", "部位类型", "做法编号", "做法名称", "做法类型", "依据", "间数",
+        "长_m", "宽_m"
+    ]
+    row = {
+        "楼层": "二层", "区域": "A区", "房间": "办公室", "部位类型": "地面/楼面",
+        "做法编号": "D01", "做法名称": "地砖楼面", "做法类型": "通用", "依据": "建施-05",
+        "间数": "1", "长_m": "6", "宽_m": "4.5"
+    }
+    path = Path(td) / "input.csv"
+    m.write_csv(path, headers, [row])
+    return path
+
+
+def test_manual_input_without_allow_manual_exits_3():
+    with tempfile.TemporaryDirectory() as td:
+        input_path = _basic_input(td)
+        out_dir = Path(td) / "out"
+        code = _run_decor(["--input", str(input_path), "--out-dir", str(out_dir)])
+        assert code == 3
+        assert not (out_dir / "provenance.json").exists()
+
+
+def test_allow_manual_writes_manual_provenance_and_handoff():
+    with tempfile.TemporaryDirectory() as td:
+        input_path = _basic_input(td)
+        out_dir = Path(td) / "out"
+        code = _run_decor(["--input", str(input_path), "--out-dir", str(out_dir),
+                           "--project", "测试项目", "--allow-manual"])
+        assert code == 0
+        prov = json.loads((out_dir / "provenance.json").read_text(encoding="utf-8"))
+        assert prov["provenance"] == "manual"
+        assert prov["final_quantity"] is False
+        assert prov["formal_ledger_eligible"] is False
+        run = json.loads((out_dir / "run.json").read_text(encoding="utf-8"))
+        assert run["entry_policy"] == "contract-only"
+        assert run["provenance"] == "manual"
+        handoff = json.loads((out_dir / "site_handoff.json").read_text(encoding="utf-8"))
+        assert handoff["schema"] == "site-handoff/v1"
+        assert handoff["specialty"] == "finish"
+        assert handoff["project"] == "测试项目"
+        member = handoff["members"][0]
+        assert member["weight_t"] is None and member["weight_basis"] == "unknown"
+        assert member["coord_status"] == "missing"
+        assert member["x_m"] is None and member["y_m"] is None
+
+
+def test_check_deps_fails_in_empty_home_and_prints_install_commands():
+    import os
+    from contextlib import redirect_stdout
+    from io import StringIO
+    with tempfile.TemporaryDirectory() as td:
+        old_home = os.environ.get("HOME")
+        old_reader = os.environ.pop("CAD_FILE_READER_HOME", None)
+        old_cad = os.environ.pop("CAD_SKILL_DIR", None)
+        old_bus = os.environ.pop("SKILLBUS_HOME", None)
+        os.environ["HOME"] = td
+        buf = StringIO()
+        try:
+            with redirect_stdout(buf):
+                code = _run_decor(["--check-deps"])
+        finally:
+            if old_home is not None:
+                os.environ["HOME"] = old_home
+            if old_reader is not None:
+                os.environ["CAD_FILE_READER_HOME"] = old_reader
+            if old_cad is not None:
+                os.environ["CAD_SKILL_DIR"] = old_cad
+            if old_bus is not None:
+                os.environ["SKILLBUS_HOME"] = old_bus
+        text = buf.getvalue()
+        assert code == 20, text
+        assert "skillhub install cad-file-reader" in text
+        assert "lis-skill-bus/install_skillbus.sh --apply" in text
+
+
+def test_drawing_input_exits_23():
+    with tempfile.TemporaryDirectory() as td:
+        drawing = Path(td) / "plan.dxf"
+        drawing.write_text("0\nSECTION\n", encoding="utf-8")
+        out_dir = Path(td) / "out"
+        for argv in (
+            ["--input", str(drawing), "--out-dir", str(out_dir), "--allow-manual"],
+            ["--input", str(drawing), "--out-dir", str(out_dir)],
+        ):
+            code = _run_decor(argv)
+            assert code == 23
+        assert not (out_dir / "provenance.json").exists()
+
+
+def test_drawing_contract_exits_23():
+    with tempfile.TemporaryDirectory() as td:
+        input_path = _basic_input(td)
+        contract = Path(td) / "cad-contract.dwg"
+        contract.write_bytes(b"not-a-real-dwg")
+        code = _run_decor(["--input", str(input_path), "--contract", str(contract),
+                           "--out-dir", str(Path(td) / "out"), "--allow-manual"])
+        assert code == 23
+
+
+def test_manual_run_records_table_channel():
+    with tempfile.TemporaryDirectory() as td:
+        input_path = _basic_input(td)
+        out_dir = Path(td) / "out"
+        code = _run_decor(["--input", str(input_path), "--out-dir", str(out_dir),
+                           "--allow-manual"])
+        assert code == 0
+        prov = json.loads((out_dir / "provenance.json").read_text(encoding="utf-8"))
+        assert prov["input_channel"] == "table"
+        report = (out_dir / "装饰概算物资计划报告.md").read_text(encoding="utf-8")
+        assert "表格输入（不经 CAD 识图）" in report
 
 
 if __name__ == "__main__":

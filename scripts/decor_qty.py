@@ -27,6 +27,13 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+import contract_guard as cg
+import contract_support as cs
+import entry_gate as eg
+
 NUMBER_RE = re.compile(r"^[-+]?(\d+(\.\d*)?|\.\d+)$")
 SPEC_RE = re.compile(r"(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)")
 
@@ -1101,10 +1108,26 @@ def _build_basis(results: list[dict[str, Any]], standards: dict[str, Any]) -> li
     return basis
 
 
+def _skill_version() -> str:
+    try:
+        return str(json.loads((Path(__file__).resolve().parents[1] / "manifest.json")
+                              .read_text(encoding="utf-8")).get("version") or "")
+    except Exception:
+        return ""
+
+
 def main() -> int:
     base = Path(__file__).resolve().parents[1]
     raw = sys.argv[1:]
     lang = i18n.argv_lang(raw)
+    # --check-deps 必须在 required 参数（--input、--out-dir）之前拦下。
+    if "--check-deps" in raw:
+        snap = eg.dependency_snapshot()
+        print(json.dumps(snap, ensure_ascii=False, indent=2))
+        if not snap.get("ok"):
+            print("修复:\n" + eg.INSTALL_HINT)
+        print("[decor_qty] 表格输入不强制 reader/bus；只有走 CAD 契约链路才需要两者就绪。")
+        return eg.dependency_exit_code()
     desc = ("Decoration QTO & material plan (detailed / quick room templates)."
             if lang == "en" else "装饰工程快速概算与物资计划算量")
     parser = argparse.ArgumentParser(description=desc)
@@ -1122,7 +1145,50 @@ def main() -> int:
                         help="report title / project name" if lang == "en" else "工程名称")
     parser.add_argument("--level", default="", help="floor label in report title" if lang == "en" else "报表标题用楼层；如需筛选请先用表格筛选")
     parser.add_argument("--note", default="快速概算与物资计划口径；正式清单、计价和采购以合同清单、地方规则及设计文件为准。")
+    parser.add_argument("--allow-manual", action="store_true",
+                        help="允许无 reader/bus 契约的手工输入表；结果 forced final_quantity=false" if lang == "en"
+                        else "允许手工输入表（无 reader/bus 契约）；结果强制 final_quantity=false")
+    parser.add_argument("--check-deps", action="store_true",
+                        help="only check cad-file-reader / lis-skill-bus / Python" if lang == "en"
+                        else "只检查 cad-file-reader / lis-skill-bus / Python 前置")
+    parser.add_argument("--contract", default="",
+                        help="optional cad-contract/v1 JSON used only as provenance evidence" if lang == "en"
+                        else "可选 cad-contract/v1 契约 JSON，仅用于溯源；工程量仍来自 --input 表")
     args = parser.parse_args(raw)
+
+    # ---- 图纸输入一律拒绝：本技能只吃表格与已生成的契约 ----
+    try:
+        eg.reject_drawing_input(args.input, args.contract)
+    except eg.GateError as exc:
+        return eg.print_gate_error(exc)
+
+    # ---- 来源闸门：默认手工表也必须显式 --allow-manual ----
+    try:
+        if args.contract:
+            guard = eg.require_contract(Path(args.contract).expanduser().resolve(),
+                                        allow_manual=bool(args.allow_manual),
+                                        require_hash=False)
+        elif args.allow_manual:
+            guard = {
+                "mode": "manual", "provenance": "manual", "contract_id": "",
+                "source_sha256": "", "contract_sha256": "", "reader_version": "",
+                "formal_ledger_eligible": False, "warnings": [
+                    "未提供 --contract；输入表按手工来源处理（final_quantity=false）。"],
+            }
+        else:
+            raise cg.GuardError(
+                3,
+                "未提供 reader/bus 契约（--contract），输入表按手工来源处理，拒入正式链路。",
+                hint="确认是手工表后加 --allow-manual；结果强制 final_quantity=false。")
+    except eg.GateError as exc:
+        return eg.print_gate_error(exc)
+    except cg.GuardError as exc:
+        sys.stderr.write("[GuardError %d] %s\n" % (exc.code, exc.message))
+        if exc.hint:
+            sys.stderr.write("修复: %s\n" % exc.hint)
+        return exc.code
+    for warning in guard.get("warnings") or []:
+        sys.stderr.write("[decor_qty] %s\n" % warning)
 
     out_dir = Path(args.out_dir).expanduser().resolve()
     paths = {
@@ -1202,6 +1268,28 @@ def main() -> int:
     basis = _build_basis(results, standards)
 
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # ---- 下游交接与溯源 sidecar（不改现有主输出口径） ----
+    members = []
+    for r in results:
+        area = _num(r.get("基面量")) if str(r.get("单位") or "") == "m2" else None
+        members.append(cs.handoff_member(
+            "FINISH-%s" % (r.get("行号") or len(members) + 2),
+            weight_t=None, length_m=None,
+            section=str(r.get("做法编号") or ""), grade="",
+            weight_basis="unknown", coord_status="missing",
+            zone=str(r.get("区域") or ""), kind=str(r.get("部位类型") or ""),
+            area_m2=area, floor=str(r.get("楼层") or ""),
+            room=str(r.get("房间") or "")))
+    provenance = cs.provenance_fields(guard)
+    provenance["mode"] = guard.get("mode") or "manual"
+    provenance["input"] = str(paths["输入"])
+    provenance["input_channel"] = "table"
+    cs.write_json(out_dir / "provenance.json", provenance)
+    cs.write_json(out_dir / "run.json",
+                  cs.run_manifest("zhuangshi-suanliang", _skill_version(), guard, argv=raw))
+    cs.write_handoff(out_dir, args.project, "finish", guard, members)
+
     detail_headers = [
         "行号", "楼层", "区域", "房间", "部位类型", "做法编号", "做法名称",
         "做法类型", "节点编号", "节点详图", "基面量", "单位", "计算式", "材料名称", "规格",
@@ -1249,6 +1337,7 @@ def main() -> int:
     report: list[str] = []
     report.append(f"# {args.project} · 装饰概算物资计划报告")
     report.append("")
+    report.append("- 输入通道：表格输入（不经 CAD 识图）")
     report.append("- 输入模式：" + input_mode)
     report.append(f"- 输入源数据行数：{len(raw_rows)}")
     report.append(f"- 展开后计算行数：{len(rows)}")
@@ -1354,6 +1443,17 @@ def main() -> int:
             f"概算行：{len(estimates)}；物资计划项：{len(material_plan)}；"
             f"明细材料行：{len(all_details)}；缺项/需核对/重复行：{len(missing)}"
         )
+    print(json.dumps({
+        "status": "ok", "ok": True, "out_dir": str(out_dir),
+        "provenance": provenance.get("provenance"),
+        "input_channel": "table",
+        "contract_id": provenance.get("contract_id") or "",
+        "final_quantity": False,
+        "formal_ledger_eligible": bool(provenance.get("formal_ledger_eligible")),
+        "handoff_members": len(members),
+        "estimate_rows": len(estimates), "material_items": len(material_plan),
+        "detail_rows": len(all_details), "missing_rows": len(missing),
+    }, ensure_ascii=False))
     return 0
 
 

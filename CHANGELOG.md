@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.36 · 2026-11-10 · S9 发布准备：版本收口
+
+- 版本 patch bump；同步套件最低版本。s9 发布准备，未改算量逻辑。
+
+## 0.9.35 · 2026-11-10 · 表格入口闸门 + input_channel 固化
+
+- **`decor_qty.py` 接入入口闸门**：新增 `import entry_gate as eg`；`--input`/`--contract` 为 `.dwg/.dxf/.dwt` 直接退出 `23`；`--contract` 统一走 `eg.require_contract()`（无效 `22`、证据不足 `24`）。
+- **表格链路保持可用**：不强制 reader/bus；无契约且无 `--allow-manual` 仍显式退出 `3`；`--check-deps` 改稳定码 `20/21`。
+- **`input_channel=table` 固化**：JSON 输出、`provenance.json`、报告同时标注；报告写明「表格输入，不经 CAD 识图」。
+- **测试修复**：`scripts/tests/test_decor_qty.py` 的运行块原来在文件中部，导致 3 个主入口用例从未执行；已移到文件末尾，并新增图纸 `23`、契约图纸 `23`、`input_channel=table` 用例。
+- **文档修正**：SKILL.md 新增退出码表与固定提示，删除「强依赖底座 exit 1」的旧口径；`manifest.scripts` 登记 `scripts/entry_gate.py`。
+
+## 0.9.34 · 2026-11-09 · 校验不再静默跳过 + 主入口闸门
+
+- **`cad_measure_to_input.py`**：缺 reader/validator 时抛 `ValidationUnavailable`，默认 `--validate` exit 1 且不写输出 CSV；仅显式 `--no-validate` 跳过，输出 `validation=skipped` 并在行内标注。
+- **`decor_qty.py` 主入口闸门**：无 `--contract` 且无 `--allow-manual` exit 3；`provenance=manual` 强制 `final_quantity=false`、`formal_ledger_eligible=false`。
+- **新增**：`--check-deps`、`--contract`（仅溯源）、`provenance.json`、`run.json`、`site_handoff.json`（`specialty=finish`，缺坐标/重量如实标注）。
+- **`ensure_base.sh`**：删除 `SKILL_NO_BASE=1` 静默降级（设置即报错 exit 1），默认版本 `0.34.1→0.41.0`，下载失败报错退出。
+- **manifest 统一**：`requires.skills={cad-file-reader>=0.41.0, lis-skill-bus>=0.1.11}`，`entry_policy=contract-only`。
+
 ## 0.9.33 · 2026-11-09 · 常驻注入瘦身
 
 - **description 精简**：技能目录注入的 description 压到 ≤45 字，保留原有触发词与「不做什么」边界；SKILL.md 正文与算法口径未变。

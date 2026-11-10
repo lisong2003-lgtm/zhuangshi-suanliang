@@ -2,8 +2,8 @@
 # 显式依赖底座（方案二）：安装/运行任意算量 skill 时自动检测 cad-file-reader。
 #   已装证书 -> 复用它并自动补齐其 vendor（缺库自动下载，CAD_AUTO_SETUP=0 关闭）
 #   未装        -> 默认自动下载安装底座（需联网；CAD_FILE_READER_VERSION 可覆盖）
-#   降级        -> SKILL_NO_BASE=1 时跳过底座，只使用已有扫描/表格输入（精度受限）
-# 用法：BASE_DIR="$(scripts/ensure_base.sh)"   # stdout=底座目录；为空=降级模式
+#   失败        -> 报错退出，不再提供 SKILL_NO_BASE 静默降级
+# 用法：BASE_DIR="$(scripts/ensure_base.sh)"   # stdout=底座目录；失败即 exit 1
 set -uo pipefail
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL_NAME="装饰算量"
@@ -30,8 +30,9 @@ if [ -n "$BASE_DIR" ] && [ -d "$BASE_DIR/vendor/ezdxf" ]; then
 fi
 
 if [ "${SKILL_NO_BASE:-0}" = "1" ]; then
-  echo "[$SKILL_NAME] 未检测到识图底座 cad-file-reader；已启用降级模式（仅用已有扫描/表格输入，精度受限）。可设 CAD_SKILL_DIR 指向底座。" >&2
-  exit 0
+  echo >&2 "[$SKILL_NAME] SKILL_NO_BASE 降级已停用：装饰算量必须使用 cad-file-reader 识图底座。"
+  echo >&2 "[$SKILL_NAME] 安装：skillhub install cad-file-reader --namespace user_43faedd6；或用 CAD_SKILL_DIR 指向 >=0.41.0 的底座。"
+  exit 1
 fi
 
 if [ -n "$BASE_DIR" ] && [ -d "$BASE_DIR/vendor" ]; then
@@ -40,7 +41,7 @@ if [ -n "$BASE_DIR" ] && [ -d "$BASE_DIR/vendor" ]; then
 fi
 
 # ---- 自动安装底座（显式依赖，非捆绑，带 SHA-256 完整性校验） -----
-VER="${CAD_FILE_READER_VERSION:-0.34.1}"
+VER="${CAD_FILE_READER_VERSION:-0.41.0}"
 REPO="${CAD_FILE_READER_REPO:-lisong2003-lgtm/cad-file-reader}"
 SHA_BIN="$(command -v shasum || command -v sha256sum || true)"
 if [ -z "$SHA_BIN" ]; then echo >&2 "[$SKILL_NAME] 缺少 sha256sum/shasum 校验工具，停止自动安装底座。"; exit 3; fi
@@ -48,7 +49,7 @@ calc_sha256() {
   if [ "${SHA_BIN##*/}" = "shasum" ]; then "$SHA_BIN" -a 256 "$1" | awk '{print $1}'
   else "$SHA_BIN" "$1" | awk '{print $1}'; fi
 }
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"; trap 'find "$TMP" -mindepth 1 -delete 2>/dev/null; rmdir "$TMP" 2>/dev/null || true' EXIT
 BASE_DIR="${CAD_SKILL_DIR:-$SKILL_DIR/../cad-file-reader}"
 if [ -d "$BASE_DIR" ]; then
   echo >&2 "[$SKILL_NAME] 底座目录已存在，未自动更新：$BASE_DIR"
@@ -57,7 +58,7 @@ fi
 echo >&2 "[$SKILL_NAME] 将同时安装显式依赖：cad-file-reader（识图底座，用于提高 $(echo $SKILL_NAME) 准确率，含 SHA-256 校验）。"
 URL="https://github.com/${REPO}/releases/download/v${VER}/cad-file-reader-full-${VER}.zip"
 if ! curl -sL --http1.1 --fail --max-time "${CAD_DOWNLOAD_TIMEOUT:-600}" "$URL" -o "$TMP/base.zip"; then
-  echo >&2 "[$SKILL_NAME] 下载底座失败。离线请设 SKILL_NO_BASE=1 降级使用；联网重试建议 export CAD_FILE_READER_VERSION=${VER} 后重试。"
+  echo >&2 "[$SKILL_NAME] 下载底座失败，已停止。请联网重试，或先用 CAD_SKILL_DIR 指向本机 >=0.41.0 的 cad-file-reader。"
   exit 3
 fi
 SUM_FILE=""

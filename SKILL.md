@@ -2,7 +2,7 @@
 name: zhuangshi-suanliang
 slug: zhuangshi-suanliang
 displayName: 装饰算量 · 概算与物资计划
-version: 0.9.33
+version: 0.9.36
 platforms: [macos, windows, linux]
 author: lis
 license: CC-BY-NC-SA-4.0
@@ -14,94 +14,37 @@ locale: zh-CN
 locales: [zh-CN, en-US]
 ---
 
-# 装饰算量 v0.9.24
+# 装饰算量 v0.9.36
 
 ## 识图契约红线（硬规则，禁止绕行）
 
 - 算量技能**不得单独识别 DWG/DXF/PDF**：识图只能由 `cad-file-reader` 做一次，产出统一契约后各技能共享复用。
 - **禁止自行 `import ezdwg/read_cad`、自带或重新下载 cad-file-reader 解图**；底座缺失如实标 `unavailable`，不得降级成「自己解图」。
-- 算量入口默认拒绝直接 DWG，只有开发/回归调试可用 `CAD_ALLOW_DIRECT=1` 逃生；算量结果必须带契约来源（图号/坐标证据）。
+- 算量入口默认只认 `cad-contract/v1` 契约；表格输入必须显式加 `--allow-manual`，结果强制 `final_quantity=false`、`formal_ledger_eligible=false`。图纸输入不设任何“开发直读”逃生开关，DWG/DXF/DWT 一律退出 `23`。
 - `lis-skill-bus` 是契约与算量技能之间的唯一定接线。
 - DWG 解码兜底（ezdwg 读不了的 ACAD 新变体/损坏卷）只能在底座内用 `ODAFileConverter` 在副本上转 DXF 复扫校验；本技能不得调用 CAD/看图 App/ODAFileConverter。
 - 内存双档：默认 `CAD_MEM_LIMIT_MB=4096`；仅实测超 4GB 真实大图且串行跑时临时 8192，不改全局默认；mem_guard 只终止识图子进程。
 
-## 版本演进
+## 入口闸门（固定退出码，禁止 fallback）
 
-0.7.0 测量候选接入记录见 `docs/history.md`；概算、物资计划、扣减、损耗和六表台账仍由本技能计算。
+本技能吃**表格输入**（CSV/TSV/XLSX），不经 CAD 识图。表格链路不强制 `cad-file-reader`/`lis-skill-bus`；走 `--contract` 时才校验契约，图纸输入一律拒绝。
 
-## 适用
+| 退出码 | 含义 | 处理 |
+|---|---|---|
+| `0` | 表格/契约入口可用 | 继续 |
+| `20` | 缺 `cad-file-reader` 或版本 < 0.41.0 | `--check-deps` 提示；表格输入不受影响 |
+| `21` | 缺 `lis-skill-bus` 或版本 < 0.1.11 | `--check-deps` 提示；表格输入不受影响 |
+| `22` | `--contract` 契约无效（版本/结构/来源/哈希/单位） | 停止，回 `cad-file-reader` 重新生成 |
+| `23` | `--input` 或 `--contract` 是 DWG/DXF/DWT | 停止，改走 `cad-file-reader` 契约 |
+| `24` | `--contract` 证据不足，或只有手工来源却要求正式量 | 停止；`--allow-manual` 结果 `final_quantity=false` |
 
-- 快速概算：按办公室、会议室、卫生间、走廊、楼梯间、屋面、外墙等房间类型展开。
-- 明细算量：按楼层、区域、房间、部位、做法编号和节点逐行输入。
-- 物资计划：输出主材/辅材分类、净量、损耗量、需求量和供货方式参考。
-- 防水：计算上翻、附加层、卷材搭接，并按内置规范参考校验。
+固定提示：`本技能不直接识图，请先安装并调用 cad-file-reader 生成 cad-contract.json，再经 lis-skill-bus 传入；不许 fallback 到内置解析。`
 
-## 前置
-## 强依赖底座（cad-file-reader，不做弱化）
+表格输入输出固定 `input_channel=table`，报告写明“表格输入，不经 CAD 识图”。
 
-`cad-file-reader` 是强依赖底座：DWG/DXF/DWT/PDF 解析、图层/文字/块/图框/几何与测量候选全部由底座完成，一次解图全项目复用；本技能只做装饰专业口径的量算、扣减、损耗、分账与台账，不重复解析图纸。底座输出候选（`final_quantity=false`），本技能输出概算底稿/物资计划草稿。缺底座或版本不足必须明确报错；装 `lis-skill-bus` 时按 `cad-contract/v1` 共享契约，否则降级到各自 `state/`。
+## 使用说明（按需读取）
 
-- 读 CAD 用已安装的 `cad-file-reader >= 0.25.0`；读 Word/Excel/PDF 用 `markitdown`。
-- 不自行解析大 DWG，只调用读图能力；第一次输入图纸先建索引，后续同图复用。
-- 项目做法表、节点详图、项目专属规则、企业定额、现行规范优先于内置默认值；项目专属做法必须绑定节点编号和节点详图，缺节点进待确认项，不用默认材料层凑数。
-- 完整架构与安装/降级细节见 `references/base-contract.md`。
-
-## 使用流程
-
-1. **圈定范围**：确认楼层、区域、房间、部位和房间类型，不把全楼混算。
-2. **读取依据**：交叉读取房间装修做法表、建筑总说明、建筑图、结构图、门窗表、节能/防水/防火说明和节点详图。  
-   优先级：节点详图/大样图 > 项目专属节点规则 > 房间装修做法表 > 建筑总说明 > 建筑图/结构图 > 默认参考值。
-3. **快速输入**：若只需初稿，填 `templates/快速概算输入表.csv`；脚本按房间模板展开为多条做法。
-4. **明细输入**：正式核对时填 `templates/装饰算量输入表.csv`，逐行绑定尺寸和做法。
-5. **计算**：概算取基面量；材料需求量乘损耗、搭接、附加层和单耗；块料向上取整。
-6. **复核**：检查待确认项、重复行、防水参数、清单口径和单价来源。
-7. **输出**：用六表 Excel 台账做商务和现场核对。
-
-## 脚本用法
-
-```bash
-# 快速概算
-python3 \
-  scripts/decor_qty.py \
-  --input templates/快速概算输入表.csv \
-  --out-dir ./概算结果 \
-  --project-rules templates/项目专属规则示例.json \
-  --project "项目名"
-
-# 明细算量
-python3 \
-  scripts/decor_qty.py \
-  --input ./输入.csv \
-  --out-dir ./明细结果 \
-  --project-rules templates/项目专属规则示例.json \
-  --project "项目名" --level "二层"
-```
-
-可用规则参数：
-
-- `--room-templates rules/标准房间模板.json`
-- `--quantity-rules rules/清单工程量规则.json`
-- `--price-rules rules/概算综合单价.json`
-- `--material-rules rules/物资分类规则.json`
-
-## 输出
-
-- `装饰概算物资计划台账.xlsx`：固定包含 `概算`、`物资计划`、`明细`、`汇总`、`缺项`、`依据`。
-- `概算明细.csv`：清单编码、清单工程量、参考单价、概算合价、计算式和状态。
-- `概算汇总.csv`：按清单项汇总工程量和合价。
-- `物资计划.csv`：净量、损耗率、损耗量、需求量、完成状态需求量、分类和供货方式。
-- `明细.csv`、`材料汇总.csv`：基面量、订货量、计算式和依据。
-- `缺项核对.csv`、`依据.csv`、`装饰概算物资计划报告.md`。
-
-## 输入校验
-
-- 明细必填列：楼层、区域、房间、部位类型、做法编号、做法名称、做法类型、依据、间数。
-- 快速输入按 `房间类型` 展开成明细；未知房间类型不静默跳过，进入待确认项。
-- 数字列必须填数字，不带文字单位；不允许负数；间数必须大于0。
-- 完全重复行标记为“重复”，不重复计入计算。
-- 防水行要求附加层宽度、搭接宽度、涂膜厚度字段；卫生间/厨房还要求上翻高度。
-- 项目专属做法必须填写节点编号、节点详图并匹配项目节点规则。
-
+快速概算/明细算量命令、输入校验、输出字段、防水与规范复核、CAD 测量候选交接、依赖闸门与联动细节已外移到 `references/on-demand.md`；本文保留红线、入口闸门、口径、边界与授权。
 ## 口径
 
 - **概算量**：清单/商务口径，取基面量，不含损耗、搭接、附加层。
@@ -111,31 +54,6 @@ python3 \
 - **单价**：内置综合单价只是示例参考；正式概算以合同清单、地方信息价、企业定额和市场询价为准。
 - 输出不用于结算、对量、竣工计量或正式报价。
 
-## 防水与规范复核
-
-内置值是参考下限和校验提示，不替代条文原文；现行规范、设计文件、节点详图和项目规则优先。
-
-- 卷材搭接参考下限 80mm；涂膜厚度参考下限 1.5mm；附加层宽度室内 0.25m、屋面/地下 0.5m；室内有水房间上翻 0.25m，淋浴区按设计另核（常见参考 1.8m）；屋面不少于 2 道。
-- 卷材用搭接系数：`幅宽 /（幅宽 - 搭接宽度）`；附加层可填直接面积或按长度×宽度计算。
-- 引用的国标/行标全清单（GB 50500、GB 50854、GB 55030、GB 50207/50208、JGJ 298 等 15 部）见 `references/waterproof-standards.md`。
-
-## CAD 测量候选交接
-
-先用 `cad-file-reader` 生成带比例、单位、计算式和证据的测量候选：
-
-```bash
-# 在识图底座 cad-file-reader 技能目录执行：
-scripts/cad_measure.sh 描述几何/图纸详情.descriptive.json --out-dir 测量候选
-```
-
-再把候选转成装饰算量输入表草稿：
-
-```bash
-scripts/cad_measure_to_input.py --measurements 测量候选/cad-measurement-candidates.json   --out CAD导入_待核对.csv --floor 二层
-```
-
-导入行会保留房间/部位候选、面积或长度候选和证据，但**做法编号留空、需核对固定为“是”**；做法映射、洞口扣减、侧壁、损耗、材料台账和正式清单量仍由本技能计算。
-
 ## 边界
 
 1. 装饰造型、线条、异形吊顶、复杂幕墙、楼梯细部不自动展开，先列待确认项。
@@ -144,22 +62,6 @@ scripts/cad_measure_to_input.py --measurements 测量候选/cad-measurement-cand
 4. CAD 测量候选只作识图证据，`final_quantity=false`；做法映射、洞口扣减、侧壁、损耗和材料台账必须在本技能内完成，真图回归仍是后续增强项。
 5. 不自动把公司数据上传云端，不联网解析图纸。
 
-
-## 显式依赖与降级（0.9+）
-
-- 底座 `cad-file-reader >= 0.28.1` 是本技能的**显式依赖**：运行首次会自动检测，缺失时自动下载安装底座并补齐 vendor（联网，下载包做 SHA-256 完整性与版本校验，校验失败拒绝安装）；已装则直接复用，不重复下载。
-- 独立/离线场景可设 `SKILL_NO_BASE=1`：不再自动安装底座，仅使用已有扫描 JSON、测量候选或表格输入（精度受限并在结果中标注）。
-- 可设 `CAD_AUTO_SETUP=0` 关闭底座内部的 vendor 自动下载；手动安装用 `scripts/setup.sh` 或 `scripts/ensure_base.sh`。
-
-## lis-skill-bus 联动
-
-- 算量链必须安装并先查 bus；命中 `cad-contract/v1` 后直接复用，不重复解图。
-- 装饰核心 section 为 `rooms` / `room_schedules`；已有契约输入时只读消费，禁止本技能自行解图。
-- 安装、路径优先级和 Windows 用法见 `docs/bus-integration.md`。
-
-## QTO 联动
-
-可选目录级登记规则见 `docs/integration.md`；只登记输入、输出与缺口，不替代本技能算法和复核。
 
 ## 运行时
 

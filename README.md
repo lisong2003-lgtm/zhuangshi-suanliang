@@ -1,4 +1,4 @@
-# 装饰算量（zhuangshi-suanliang）v0.9.0
+# 装饰算量（zhuangshi-suanliang）v0.9.36
 **[English](./README.en.md) | [中文](./README.md)**
 
 

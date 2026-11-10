@@ -54,8 +54,16 @@ def blank() -> dict[str, str]:
     return {header: "" for header in HEADERS}
 
 
-def cad_validate(input_path: Path) -> dict[str, Any] | None:
-    """用 cad-file-reader 的 cad_validate.sh 校验交接 JSON；找不到底座时返回 None。"""
+class ValidationUnavailable(RuntimeError):
+    """默认 --validate 需要 cad-file-reader 的校验器；缺失或不可执行时不再静默跳过。"""
+
+
+def cad_validate(input_path: Path) -> dict[str, Any]:
+    """用 cad-file-reader 的 cad_validate.sh 校验交接 JSON。
+
+    默认校验路径不再返回 None 静默跳过：底座/校验器缺失直接抛
+    ValidationUnavailable，由 main 退出 1；仅显式 --no-validate 才跳过。
+    """
     base = os.environ.get("CAD_SKILL_DIR")
     if not base:
         for d in (Path(__file__).resolve().parent.parent.parent / "cad-file-reader",
@@ -66,17 +74,22 @@ def cad_validate(input_path: Path) -> dict[str, Any] | None:
                 base = str(d)
                 break
     if not base:
-        return None
+        raise ValidationUnavailable(
+            "找不到 cad-file-reader，无法执行 --validate。"
+            "安装：skillhub install cad-file-reader --namespace user_43faedd6；"
+            "确有离线交付需要时显式加 --no-validate，并在输出标 validation=skipped。")
     validator = Path(base) / "scripts" / "cad_validate.sh"
     if not validator.exists():
-        return None
+        raise ValidationUnavailable(
+            f"cad-file-reader 缺少校验器：{validator}。请升级到 >=0.41.0；"
+            "确有离线交付需要时显式加 --no-validate。")
     try:
         r = subprocess.run(
             ["bash", str(validator), str(input_path)],
             capture_output=True, text=True, timeout=120,
         )
     except Exception as exc:
-        return {"ok": False, "errors": [f"{type(exc).__name__}: {exc}"], "skipped": True}
+        return {"ok": False, "errors": [f"{type(exc).__name__}: {exc}"], "exit": None}
     lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
     errors: list[str] = []
     for ln in lines:
@@ -85,6 +98,9 @@ def cad_validate(input_path: Path) -> dict[str, Any] | None:
             errors.extend(rec.get("errors") or [])
         except Exception:
             continue
+    if r.returncode != 0 and not errors:
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
+        errors.append("cad_validate exit %d：%s" % (r.returncode, " | ".join(tail)))
     return {"ok": r.returncode == 0 and not errors, "errors": errors[:20],
             "exit": r.returncode}
 
@@ -389,7 +405,9 @@ def main() -> int:
     parser.add_argument("--notes-text", action="append", default=[],
                         help="可选：本地建筑说明/PDF OCR 文本；可重复传入，只生成待核对做法证据行")
     parser.add_argument("--validate", dest="validate", action=argparse.BooleanOptionalAction,
-                        default=True, help="导入前用 cad-file-reader 校验交接 JSON（缺底座时静默跳过）")
+                        default=True,
+                        help="导入前用 cad-file-reader 校验交接 JSON；缺底座/校验器 exit 1。"
+                             "仅显式 --no-validate 才跳过并标 validation=skipped")
     args = parser.parse_args()
 
     source = Path(args.measurements).expanduser().resolve() if args.measurements else None
@@ -403,13 +421,24 @@ def main() -> int:
         interior_finish = json.loads(Path(args.interior_finish).expanduser().resolve().read_text(encoding="utf-8"))
     rows, skipped = convert(payload, args.floor, args.zone, descriptive, interior_finish, args.notes_text)
 
-    validation: dict[str, Any] | None = None
-    if args.validate and source is not None:
-        validation = cad_validate(source)
-        if validation is not None and not validation.get("ok"):
-            for row in rows:
-                row["需核对"] = "是"
-                row["说明"] = ("CAD交接校验未通过：" + "；".join(validation.get("errors") or []) + "。 " + row["说明"])
+    validation: dict[str, Any] | str | None = None
+    if args.validate:
+        if source is not None:
+            try:
+                validation = cad_validate(source)
+            except ValidationUnavailable as exc:
+                print(f"❌ {exc}", file=sys.stderr)
+                return 1
+            if not validation.get("ok"):
+                print("❌ CAD交接校验未通过：" + "；".join(validation.get("errors") or []), file=sys.stderr)
+                return 1
+        else:
+            validation = {"ok": True, "skipped": True, "reason": "未提供 --measurements，无需校验"}
+    else:
+        validation = "skipped"
+        for row in rows:
+            row["需核对"] = "是"
+            row["说明"] = "未执行 CAD交接校验（--no-validate）；" + row["说明"]
 
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8-sig", newline="") as handle:

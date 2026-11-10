@@ -28,7 +28,7 @@ class CadMeasureToInputTest(unittest.TestCase):
             src = root / "measure.json"
             out = root / "decor.csv"
             src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-            proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src), "--out", str(out), "--floor", "二层"], capture_output=True, text=True)
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src), "--out", str(out), "--floor", "二层", "--no-validate"], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             with out.open(encoding="utf-8-sig") as handle:
                 rows = list(csv.DictReader(handle))
@@ -58,7 +58,7 @@ class CadMeasureToInputTest(unittest.TestCase):
             src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             desc.write_text(json.dumps(descriptive, ensure_ascii=False), encoding="utf-8")
             proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src),
-                                   "--descriptive", str(desc), "--out", str(out), "--floor", "二层"],
+                                   "--descriptive", str(desc), "--out", str(out), "--floor", "二层", "--no-validate"],
                                   capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             with out.open(encoding="utf-8-sig") as handle:
@@ -88,7 +88,7 @@ class CadMeasureToInputTest(unittest.TestCase):
             src = root / "finish.json"
             out = root / "decor.csv"
             src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-            proc = subprocess.run([sys.executable, str(SCRIPT), "--interior-finish", str(src), "--out", str(out), "--floor", "三层"], capture_output=True, text=True)
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--interior-finish", str(src), "--out", str(out), "--floor", "三层", "--no-validate"], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             with out.open(encoding="utf-8-sig") as handle:
                 rows = list(csv.DictReader(handle))
@@ -115,6 +115,7 @@ class CadMeasureToInputTest(unittest.TestCase):
             proc = subprocess.run([
                 sys.executable, str(SCRIPT), "--measurements", str(src),
                 "--notes-text", str(notes), "--out", str(out), "--floor", "四层",
+                "--no-validate",
             ], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             with out.open(encoding="utf-8-sig") as handle:
@@ -126,7 +127,8 @@ class CadMeasureToInputTest(unittest.TestCase):
             self.assertIn("OCR 文本证据", rows[0]["说明"])
             self.assertEqual(rows[0]["做法编号"], "")
 
-    def test_validate_skipped_when_base_missing(self):
+    def test_validate_fails_when_base_missing_by_default(self):
+        """默认 --validate 缺底座必须 exit 1，不能静默跳过。"""
         payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -137,9 +139,24 @@ class CadMeasureToInputTest(unittest.TestCase):
             proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src),
                                    "--out", str(out), "--floor", "二层"],
                                   capture_output=True, text=True, env=env)
+            self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+            self.assertFalse(out.exists())
+            self.assertIn("cad-file-reader", proc.stderr)
+
+    def test_explicit_no_validate_marks_skipped(self):
+        payload = {"schema": "cad-measurement-candidates/v1", "measurements": []}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "measure.json"
+            out = root / "decor.csv"
+            src.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            env = {"PATH": "/usr/bin:/bin", "CAD_SKILL_DIR": str(root / "not-exists")}
+            proc = subprocess.run([sys.executable, str(SCRIPT), "--measurements", str(src),
+                                   "--out", str(out), "--floor", "二层", "--no-validate"],
+                                  capture_output=True, text=True, env=env)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             summary = json.loads(proc.stdout)
-            self.assertIsNone(summary["validation"])
+            self.assertEqual(summary["validation"], "skipped")
 
 
 if __name__ == "__main__":
